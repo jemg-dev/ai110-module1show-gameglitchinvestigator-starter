@@ -51,6 +51,21 @@ if "status" not in st.session_state:
 if "history" not in st.session_state:
     st.session_state.history = []
 
+
+def reset_game(low, high):
+    st.session_state.attempts = 0
+    st.session_state.secret = random.randint(low, high)
+    st.session_state.score = 0
+    st.session_state.status = "playing"
+    st.session_state.history = []
+
+
+#FIX: switching difficulty mid-game kept the old secret (e.g. 40 on Easy's 1-20 range), so start a fresh game instead
+if st.session_state.get("difficulty") != difficulty:
+    if "difficulty" in st.session_state:
+        reset_game(low, high)
+    st.session_state.difficulty = difficulty
+
 st.subheader("Make a guess")
 
 st.info(
@@ -79,11 +94,8 @@ with col3:
     show_hint = st.checkbox("Show hint", value=True)
 
 if new_game:
-    st.session_state.attempts = 0
-    st.session_state.secret = random.randint(low, high)  #FIX: use the difficulty's range instead of a hardcoded 1-100
-    st.session_state.score = 0  #FIX: reset score for the new game
-    st.session_state.status = "playing"  #FIX: clear the stale "won"/"lost" status so the game is playable again
-    st.session_state.history = []  #FIX: clear the previous game's guess history
+    #FIX: reset_game uses the difficulty's range (not a hardcoded 1-100) and clears score, status and history
+    reset_game(low, high)
     #FIX: removed the "New game started." message, it never displayed because st.rerun() followed it
     st.rerun()
 

@@ -13,11 +13,60 @@ It was largely broken, but the objective of the game was clear. The first thing 
 
 Document at least 3 bugs you found. Add rows as needed.
 
-| Input | Expected Behavior | Actual Behavior | Console Output / Error |
-|-------|-------------------|-----------------|------------------------|
-|1 | Too Low, Go Higher|Too Low, Go Lower| Go Lower hint for an low num|
-| 51 | Too High, Go Lower | Too High, Go Higher | Go Higher hint for a high num |
-|Normal Difficulty | Guess a number between 1 and 50  | Guess a number between 1 and 100| Guess a number between 1 and 100 was hardcoded regardless of input and changes in number range |
+| # | Input / Trigger | Expected Behavior | Actual Behavior | Console Output / Error | Code-level cause |
+|---|-----------------|-------------------|-----------------|------------------------|------------------|
+| 1 | Guess `1`, secret `50` | Too Low, hint "Go HIGHER!" | Too Low, hint "Go LOWER!" | `guess=1 -> ['Go LOWER!']` | `check_guess` in the original `app.py` returned the two hint messages swapped (the `#FIXME` lines in the `guess > secret` / `else` branches) |
+| 2 | Guess `51`, secret `50` | Too High, hint "Go LOWER!" | Too High, hint "Go HIGHER!" | `guess=51 -> ['Go HIGHER!']` | Same swapped messages as #1 |
+| 3 | Guess `9`, secret `10`, on the 1st Submit (attempt counter = 2, an even number) | Outcome "Too Low", score goes down by 5 | Outcome treated as "Too High", score went **up** by 5 | `guess=9 -> attempts=2 score=5 ... ['Go HIGHER!']` | `app.py`: `if st.session_state.attempts % 2 == 0: secret = str(secret)`. An int guess vs. a str secret raises `TypeError` in `check_guess`, whose `except` branch compares **strings** (`"9" > "10"` is `True`) |
+| 4 | Normal difficulty selected | Range text "between 1 and 50" | "Guess a number between 1 and 100" (and the sidebar said `Range: 1 to 100`) | `info: Guess a number between 1 and 100. Attempts left: 7` | The range in the `st.info` text was hardcoded to 1 and 100 instead of using `low` / `high`; `get_range_for_difficulty` also had Normal and Hard ranges swapped |
+| 5 | Easy difficulty, five wrong guesses in a row | Game allows 6 guesses (the number shown in the sidebar) | Game over after the 5th guess; "Attempts left" showed 5 before the first guess | `sidebar: Attempts allowed: 6` ... `guess=1 -> attempts=6 status=lost` | `st.session_state.attempts` started at `1` instead of `0` |
+| 6 | Easy has 6 attempts, Normal has 8 | Easy (the easiest) should have the most attempts | Easy 6, Normal 8 | `sidebar: ['Range: 1 to 20', 'Attempts allowed: 6']` | `attempt_limit_map` values for Easy and Normal were swapped |
+| 7 | Win a game, press **New Game**, then guess again | A fresh game: score `0`, empty history, guessing allowed | Still "won", score kept at 70, guess blocked | `after New Game: status=won score=70 history=[10]` then `['You already won. Start a new game to play again.']` | The `new_game` branch only reset `attempts` and `secret` (and used a hardcoded `randint(1, 100)`); it never reset `status`, `score` or `history` |
+| 8 | Guess `60` three times, secret `50` | Every wrong guess costs 5 points (score `-5`, `-10`, `-15`) | Score went `+5`, `0`, `+5`: a "Too High" guess *gained* 5 points on even-numbered attempts | `guess=60 -> attempts=2 score=5`, `attempts=3 score=0`, `attempts=4 score=5` | `update_score` in the original `app.py`: `if outcome == "Too High": if attempt_number % 2 == 0: return current_score + 5` |
+| 9 | Start a game with secret `40`, make one guess, then switch Difficulty to **Easy** (range 1-20) | A new game with a secret inside 1-20, attempts, score and history reset | Secret stayed `40` (impossible to guess on Easy), attempts/score/history carried over | `switched to Easy -> secret=40 attempts=2 score=-5 history=[1]` | The secret (and the other game state) was only initialised once, under `if "secret" not in st.session_state`, so changing the selectbox never re-rolled it |
+
+**How these were reproduced.** I ran the original starter `app.py` (`git show f651d72:app.py`) headlessly with Streamlit's `AppTest` runner, setting the secret number and pressing the real Submit / New Game buttons. Output (trimmed to the relevant lines):
+
+```text
+===== ORIGINAL starter app (commit f651d72) =====
+
+[1] Normal difficulty, secret=50: header + sidebar text
+  sidebar: ['Range: 1 to 100', 'Attempts allowed: 8']
+  info   : Guess a number between 1 and 100. Attempts left: 7
+
+[2] Normal, secret=50: guess 1 (too low) then 51 (too high)
+  guess=    1 -> attempts=2 score=-5 status=playing | ['Go LOWER!']
+  guess=   51 -> attempts=3 score=-10 status=playing | ['Go HIGHER!']
+
+[3] Normal, secret=10: guess 9 on the 1st submit (an even attempt in the starter)
+  guess=    9 -> attempts=2 score=5 status=playing | ['Go HIGHER!']
+
+[4] Easy, secret=7: info text and how many guesses are really allowed
+  sidebar: ['Range: 1 to 20', 'Attempts allowed: 6']
+  info   : Guess a number between 1 and 100. Attempts left: 5
+  guess=    1 -> attempts=2 score=-5 status=playing | ['Go LOWER!']
+  guess=    1 -> attempts=3 score=-10 status=playing | ['Go LOWER!']
+  guess=    1 -> attempts=4 score=-15 status=playing | ['Go LOWER!']
+  guess=    1 -> attempts=5 score=-20 status=playing | ['Go LOWER!']
+  guess=    1 -> attempts=6 score=-25 status=lost | ['Go LOWER!', 'Out of attempts! The secret was 7. Score: -25']
+
+[5] Normal, secret=10: win, then press New Game, then guess again
+  guess=   10 -> attempts=2 score=70 status=won | ['Correct!', 'You won! The secret was 10. Final score: 70']
+  after New Game: status=won score=70 history=[10]
+  guess after New Game -> ['You already won. Start a new game to play again.']
+
+[6] Normal, secret=50: the same wrong guess (60) three times
+  guess=60 (secret=50) -> attempts=2 score=5 | ['Go HIGHER!']
+  guess=60 (secret=50) -> attempts=3 score=0 | ['Go HIGHER!']
+  guess=60 (secret=50) -> attempts=4 score=5 | ['Go HIGHER!']
+
+[7] Normal, secret=40: one wrong guess (1), then switch Difficulty to Easy (range 1-20)
+  Normal, secret=40, after 1 wrong guess: attempts=2 score=-5
+  switched to Easy -> secret=40 attempts=2 score=-5 history=[1] status=playing
+    info: Guess a number between 1 and 100. Attempts left: 4
+```
+
+Note on row 3: the hint text "Go HIGHER!" happens to look right there, but only because the swapped-hint bug (rows 1 and 2) and the string-comparison bug cancel out. The outcome was still wrong ("Too High"), which is why the score went up instead of down.
 
 ---
 
