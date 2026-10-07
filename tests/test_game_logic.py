@@ -1,16 +1,33 @@
+import pytest
+
 from logic_utils import check_guess
+
+#FIX: Removed previous test cases because entire string to int comparison was removed in core logic. Updated with new tests
 
 def test_winning_guess():
     # If the secret is 50 and guess is 50, it should be a win
-    result = check_guess(50, 50)
-    assert result == "Win"
+    outcome, message = check_guess(50, 50)
+    assert outcome == "Win"
+    assert "Correct" in message
+
 
 def test_guess_too_high():
-    # If secret is 50 and guess is 60, hint should be "Too High"
-    result = check_guess(60, 50)
-    assert result == "Too High"
+    # If secret is 50 and guess is 60, outcome is "Too High" and hint says go lower
+    outcome, message = check_guess(60, 50)
+    assert outcome == "Too High"
+    assert "LOWER" in message
+
 
 def test_guess_too_low():
-    # If secret is 50 and guess is 40, hint should be "Too Low"
-    result = check_guess(40, 50)
-    assert result == "Too Low"
+    # If secret is 50 and guess is 40, outcome is "Too Low" and hint says go higher
+    outcome, message = check_guess(40, 50)
+    assert outcome == "Too Low"
+    assert "HIGHER" in message
+
+
+def test_hint_direction_matches_outcome():
+    # Regression: hints used to be swapped (too high -> "Go HIGHER!")
+    assert "HIGHER" not in check_guess(60, 50)[1]
+    assert "LOWER" not in check_guess(40, 50)[1]
+
+
