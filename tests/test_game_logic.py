@@ -31,3 +31,52 @@ def test_hint_direction_matches_outcome():
     assert "LOWER" not in check_guess(40, 50)[1]
 
 
+from streamlit.testing.v1 import AppTest
+
+NORMAL_ATTEMPT_LIMIT = 6  # app.py: Normal difficulty allows 6 attempts
+
+
+def _new_app(secret=50):
+    at = AppTest.from_file("app.py").run()
+    at.session_state["secret"] = secret
+    return at
+
+
+def _submit_guess(at, guess):
+    at.text_input(key="guess_input_Normal").set_value(str(guess))
+    at.button[0].click()  # "Submit Guess"
+    return at.run()
+
+
+def test_game_ends_after_max_attempts():
+    # Guessing wrong every time should end the game on the final allowed attempt
+    at = _new_app(secret=50)
+    for _ in range(NORMAL_ATTEMPT_LIMIT):
+        assert at.session_state["status"] == "playing"
+        at = _submit_guess(at, 1)
+
+    assert at.session_state["attempts"] == NORMAL_ATTEMPT_LIMIT
+    assert at.session_state["status"] == "lost"
+    assert any("Out of attempts" in e.value for e in at.error)
+
+
+def test_no_more_guesses_accepted_after_game_over():
+    # Once the game is lost, extra submissions must not count as attempts
+    at = _new_app(secret=50)
+    for _ in range(NORMAL_ATTEMPT_LIMIT):
+        at = _submit_guess(at, 1)
+
+    at = _submit_guess(at, 2)
+
+    assert at.session_state["attempts"] == NORMAL_ATTEMPT_LIMIT
+    assert at.session_state["status"] == "lost"
+    assert any("Game over" in e.value for e in at.error)
+
+
+def test_game_not_over_before_max_attempts():
+    # One attempt short of the limit, the game should still be playable
+    at = _new_app(secret=50)
+    for _ in range(NORMAL_ATTEMPT_LIMIT - 1):
+        at = _submit_guess(at, 1)
+
+    assert at.session_state["status"] == "playing"

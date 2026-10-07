@@ -39,11 +39,15 @@ My first attempt at a fix was fixing the hint to suggest the opposite of what it
 
 Describe your fixed game in numbered steps so a reader can follow along without watching a video:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+1. User enters a guess of 1
+2. Game return go HIGHER
+3. User enters a guess of 22
+4. Game return go LOWER
+5. User enters a guess of 21
+6. Game returns Correct!
+7. User tries another guess
+8. Game returns Already Won. Start new game to play again
+9. New Game begins and previous state reset
 
 **Screenshot** *(optional)*: <!-- Insert a screenshot of your fixed, winning game here -->
 
